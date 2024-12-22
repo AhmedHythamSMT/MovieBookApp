@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "269347914780",
+    "project_id": "movie-book-5b182",
+    "storage_bucket": "movie-book-5b182.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:269347914780:android:edb212eed69d9a94d30bd9",
+        "android_client_info": {
+          "package_name": "asm2.moob.movieapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLIh31-LfAz_h2x8fDb8WMThI_1uc1kEA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
