@@ -1,8 +1,8 @@
 package asm2.moob.movieapp.ui.viewmodels
 
-import MovieRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import asm2.moob.movieapp.data.repository.MovieRepository
 
 class MovieViewModelFactory(private val repository: MovieRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

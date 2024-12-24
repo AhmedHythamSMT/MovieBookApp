@@ -1,10 +1,22 @@
 package asm2.moob.movieapp.ui.screens
 
+import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -14,6 +26,7 @@ import asm2.moob.movieapp.navigation.Routes
 import asm2.moob.movieapp.ui.viewmodels.AuthState
 import asm2.moob.movieapp.ui.viewmodels.AuthViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
     navController: NavController,
@@ -23,99 +36,192 @@ fun RegisterScreen(
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     val authState by authViewModel.authState.collectAsStateWithLifecycle()
+    val toastMessage by authViewModel.toastMessage.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     LaunchedEffect(authState) {
         when (authState) {
             is AuthState.Success -> {
-                navController.navigate(Routes.Login.route) {
-                    popUpTo(Routes.Register.route) { inclusive = true }
+                navController.navigate(Routes.MovieList) {
+                    popUpTo(Routes.Register) { inclusive = true }
                 }
             }
             else -> { /* Do nothing */ }
         }
     }
 
-    Column(
+    LaunchedEffect(toastMessage) {
+        toastMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            authViewModel.clearToastMessage()
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        Text(
-            text = "Register",
-            style = MaterialTheme.typography.headlineMedium
-        )
-        
-        Spacer(modifier = Modifier.height(32.dp))
-
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = confirmPassword,
-            onValueChange = { confirmPassword = it },
-            label = { Text("Confirm Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Button(
-            onClick = { 
-                if (password == confirmPassword) {
-                    authViewModel.register(email, password)
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = email.isNotBlank() && 
-                     password.isNotBlank() && 
-                     confirmPassword.isNotBlank() &&
-                     password == confirmPassword
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text("Register")
-        }
+            Icon(
+                imageVector = Icons.Default.Movie,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(80.dp)
+                    .padding(bottom = 16.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Movie Book",
+                style = MaterialTheme.typography.headlineLarge.copy(
+                    fontWeight = FontWeight.Bold
+                ),
+                color = MaterialTheme.colorScheme.onBackground
+            )
 
-        TextButton(
-            onClick = { 
-                navController.navigate(Routes.Login.route) {
-                    popUpTo(Routes.Register.route)
+            Text(
+                text = "Create your account",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                modifier = Modifier.padding(bottom = 32.dp)
+            )
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None,
+                    keyboardType = KeyboardType.Email
+                ),
+                leadingIcon = {
+                    Icon(Icons.Default.Email, "Email")
+                },
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None,
+                    keyboardType = KeyboardType.Password
+                ),
+                leadingIcon = {
+                    Icon(Icons.Default.Lock, "Password")
+                },
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = confirmPassword,
+                onValueChange = { confirmPassword = it },
+                label = { Text("Confirm Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None,
+                    keyboardType = KeyboardType.Password
+                ),
+                leadingIcon = {
+                    Icon(Icons.Default.Lock, "Confirm Password")
+                },
+                shape = RoundedCornerShape(12.dp),
+                isError = password != confirmPassword && confirmPassword.isNotEmpty()
+            )
+
+            if (password != confirmPassword && confirmPassword.isNotEmpty()) {
+                Text(
+                    text = "Passwords do not match",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .align(Alignment.Start)
+                        .padding(start = 16.dp, top = 4.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = { 
+                    if (password == confirmPassword) {
+                        authViewModel.register(email, password)
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                enabled = email.isNotBlank() && 
+                         password.isNotBlank() && 
+                         confirmPassword.isNotBlank() &&
+                         password == confirmPassword,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                if (authState is AuthState.Loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text("Register")
                 }
             }
-        ) {
-            Text("Already have an account? Login")
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Already have an account? ",
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                )
+                TextButton(
+                    onClick = { 
+                        navController.navigate(Routes.Login) {
+                            popUpTo(Routes.Register) { inclusive = true }
+                        }
+                    }
+                ) {
+                    Text("Login")
+                }
+            }
         }
 
+        // Error message
         if (authState is AuthState.Error) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = (authState as AuthState.Error).message,
-                color = MaterialTheme.colorScheme.error
-            )
-        }
-
-        if (authState is AuthState.Loading) {
-            Spacer(modifier = Modifier.height(16.dp))
-            CircularProgressIndicator()
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(16.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = (authState as AuthState.Error).message,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
     }
 } 

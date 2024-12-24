@@ -1,16 +1,20 @@
 package asm2.moob.movieapp
 
-import Navigation
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import asm2.moob.movieapp.navigation.BottomNavItem
+import asm2.moob.movieapp.navigation.NavGraph
+import asm2.moob.movieapp.navigation.Routes
 import asm2.moob.movieapp.ui.theme.MovieAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -18,29 +22,61 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MovieAppTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    Navigation()
-                }
+                MainScreen()
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+fun MainScreen() {
+    val navController = rememberNavController()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStackEntry?.destination?.route
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    MovieAppTheme {
-        Greeting("Android")
+    // Hide bottom bar on these screens
+    val shouldShowBottomBar = when (currentRoute) {
+        Routes.Splash -> false
+        Routes.Login -> false
+        Routes.Register -> false
+        Routes.MovieDetail -> false
+        null -> false
+        else -> true
+    }
+    
+    Scaffold(
+        bottomBar = {
+            if (shouldShowBottomBar) {
+                NavigationBar {
+                    BottomNavItem.items.forEach { item ->
+                        NavigationBarItem(
+                            icon = { Icon(item.icon, contentDescription = item.title) },
+                            label = { Text(item.title) },
+                            selected = currentRoute == item.route,
+                            onClick = {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.startDestinationId)
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    ) { innerPadding ->
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            NavGraph(
+                navController = navController,
+                startDestination = Routes.Splash,
+                modifier = Modifier.padding(
+                    bottom = if (shouldShowBottomBar) innerPadding.calculateBottomPadding() else 0.dp
+                )
+            )
+        }
     }
 }

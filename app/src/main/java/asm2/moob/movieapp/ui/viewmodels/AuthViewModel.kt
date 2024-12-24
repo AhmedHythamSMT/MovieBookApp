@@ -17,40 +17,49 @@ sealed class AuthState {
 }
 
 class AuthViewModel : ViewModel() {
-    private val auth = FirebaseAuth.getInstance()
-    
-    private val _authState = MutableStateFlow<AuthState>(
-        if (auth.currentUser != null) AuthState.Success(auth.currentUser!!)
-        else AuthState.Initial
-    )
+    private val _authState = MutableStateFlow<AuthState>(AuthState.Initial)
     val authState: StateFlow<AuthState> = _authState
 
-    fun register(email: String, password: String) {
-        viewModelScope.launch {
-            try {
-                _authState.value = AuthState.Loading
-                val result = auth.createUserWithEmailAndPassword(email, password).await()
-                result.user?.let { user ->
-                    _authState.value = AuthState.Success(user)
-                }
-            } catch (e: Exception) {
-                _authState.value = AuthState.Error(e.message ?: "Registration failed")
-            }
+    private val _toastMessage = MutableStateFlow<String?>(null)
+    val toastMessage: StateFlow<String?> = _toastMessage
+
+    private val auth = FirebaseAuth.getInstance()
+
+    init {
+        // Check if user is already logged in
+        auth.currentUser?.let {
+            _authState.value = AuthState.Success(it)
         }
     }
 
     fun login(email: String, password: String) {
-        viewModelScope.launch {
-            try {
-                _authState.value = AuthState.Loading
-                val result = auth.signInWithEmailAndPassword(email, password).await()
-                result.user?.let { user ->
-                    _authState.value = AuthState.Success(user)
-                }
-            } catch (e: Exception) {
-                _authState.value = AuthState.Error(e.message ?: "Login failed")
+        _authState.value = AuthState.Loading
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnSuccessListener {
+                _authState.value = AuthState.Success(it.user!!)
+                _toastMessage.value = "Successfully logged in"
             }
-        }
+            .addOnFailureListener {
+                _authState.value = AuthState.Error(it.message ?: "Login failed")
+                _toastMessage.value = it.message ?: "Login failed"
+            }
+    }
+
+    fun register(email: String, password: String) {
+        _authState.value = AuthState.Loading
+        auth.createUserWithEmailAndPassword(email, password)
+            .addOnSuccessListener {
+                _authState.value = AuthState.Success(it.user!!)
+                _toastMessage.value = "Successfully registered"
+            }
+            .addOnFailureListener {
+                _authState.value = AuthState.Error(it.message ?: "Registration failed")
+                _toastMessage.value = it.message ?: "Registration failed"
+            }
+    }
+
+    fun clearToastMessage() {
+        _toastMessage.value = null
     }
 
     fun logout() {
@@ -61,6 +70,15 @@ class AuthViewModel : ViewModel() {
             } catch (e: Exception) {
                 _authState.value = AuthState.Error(e.message ?: "Logout failed")
             }
+        }
+    }
+
+    fun checkAuthState() {
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            _authState.value = AuthState.Success(currentUser)
+        } else {
+            _authState.value = AuthState.Initial
         }
     }
 } 

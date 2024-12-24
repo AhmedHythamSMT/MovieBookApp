@@ -3,18 +3,19 @@ package asm2.moob.movieapp.data.model
 import com.google.gson.annotations.SerializedName
 
 data class Movie(
-    val id: Int,
-    val title: String,
-    val overview: String,
+    val id: Int = 0,
+    val title: String = "",
+    val overview: String = "",
     @SerializedName("poster_path")
-    val posterPath: String?,
+    val posterPath: String? = null,
     @SerializedName("backdrop_path")
-    val backdropPath: String?,
+    val backdropPath: String? = null,
     @SerializedName("release_date")
-    val releaseDate: String,
+    val releaseDate: String = "",
     @SerializedName("vote_average")
-    val voteAverage: Double,
-    val genres: List<Genre> = emptyList(),
+    val voteAverage: Double = 0.0,
+    @SerializedName("genre_ids")
+    val genres: List<Int>? = null,
     @SerializedName("runtime")
     val runtime: Int? = null,
     @SerializedName("vote_count")

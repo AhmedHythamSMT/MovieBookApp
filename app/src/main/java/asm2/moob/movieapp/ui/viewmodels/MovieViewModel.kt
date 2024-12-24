@@ -1,6 +1,5 @@
 package asm2.moob.movieapp.ui.viewmodels
 
-import MovieRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import asm2.moob.movieapp.data.model.Movie
@@ -10,6 +9,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import asm2.moob.movieapp.util.NetworkUtil
+import kotlinx.coroutines.coroutineScope
+import android.util.Log
+import asm2.moob.movieapp.data.repository.MovieRepository
 
 class MovieViewModel(private val repository: MovieRepository) : ViewModel() {
     private val _movies = MutableStateFlow<List<Movie>>(emptyList())
@@ -36,15 +38,119 @@ class MovieViewModel(private val repository: MovieRepository) : ViewModel() {
 
     private var paginationJob: Job? = null
 
+    private val _nowPlayingMovies = MutableStateFlow<List<Movie>>(emptyList())
+    val nowPlayingMovies: StateFlow<List<Movie>> = _nowPlayingMovies
+
+    private val _upcomingMovies = MutableStateFlow<List<Movie>>(emptyList())
+    val upcomingMovies: StateFlow<List<Movie>> = _upcomingMovies
+
+    private val _topRatedMovies = MutableStateFlow<List<Movie>>(emptyList())
+    val topRatedMovies: StateFlow<List<Movie>> = _topRatedMovies
+
     init {
-        loadPopularMovies()
+        loadInitialData()
+    }
+
+    private fun loadInitialData() {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _error.value = null
+                
+                Log.d("MovieViewModel", "Loading initial data...")
+                
+                // Load popular movies first
+                try {
+                    val popularResponse = repository.getPopularMovies(1)
+                    Log.d("MovieViewModel", "Popular movies loaded: ${popularResponse.results.size}")
+                    _movies.value = popularResponse.results
+                } catch (e: Exception) {
+                    Log.e("MovieViewModel", "Error loading popular movies", e)
+                    throw e
+                }
+
+                // Then load other categories
+                coroutineScope {
+                    launch {
+                        try {
+                            val nowPlayingResponse = repository.getNowPlayingMovies()
+                            Log.d("MovieViewModel", "Now playing loaded: ${nowPlayingResponse.results.size}")
+                            _nowPlayingMovies.value = nowPlayingResponse.results
+                        } catch (e: Exception) {
+                            Log.e("MovieViewModel", "Error loading now playing", e)
+                        }
+                    }
+
+                    launch {
+                        try {
+                            val upcomingResponse = repository.getUpcomingMovies()
+                            _upcomingMovies.value = upcomingResponse.results
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+
+                    launch {
+                        try {
+                            val topRatedResponse = repository.getTopRatedMovies()
+                            _topRatedMovies.value = topRatedResponse.results
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MovieViewModel", "Error in loadInitialData", e)
+                _error.value = NetworkUtil.getErrorMessage(e)
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    private fun loadAllCategories() {
+        viewModelScope.launch {
+            try {
+                coroutineScope {
+                    launch { loadNowPlayingMovies() }
+                    launch { loadUpcomingMovies() }
+                    launch { loadTopRatedMovies() }
+                }
+            } catch (e: Exception) {
+                _error.value = NetworkUtil.getErrorMessage(e)
+            }
+        }
+    }
+
+    private suspend fun loadNowPlayingMovies() {
+        try {
+            val response = repository.getNowPlayingMovies()
+            _nowPlayingMovies.value = response.results
+        } catch (e: Exception) {
+            // Handle error
+        }
+    }
+
+    private suspend fun loadUpcomingMovies() {
+        try {
+            val response = repository.getUpcomingMovies()
+            _upcomingMovies.value = response.results
+        } catch (e: Exception) {
+            // Handle error
+        }
+    }
+
+    private suspend fun loadTopRatedMovies() {
+        try {
+            val response = repository.getTopRatedMovies()
+            _topRatedMovies.value = response.results
+        } catch (e: Exception) {
+            // Handle error
+        }
     }
 
     private fun loadPopularMovies(isLoadingMore: Boolean = false) {
-        if (_isLoading.value || (!isLoadingMore && _isLoadingMore.value)) return
-        if (isLoadingMore && paginationJob?.isActive == true) return
-
-        val job = viewModelScope.launch {
+        viewModelScope.launch {
             try {
                 if (isLoadingMore) {
                     _isLoadingMore.value = true
@@ -58,13 +164,9 @@ class MovieViewModel(private val repository: MovieRepository) : ViewModel() {
                 val response = repository.getPopularMovies(currentPage)
                 val currentMovies = if (isLoadingMore) _movies.value else emptyList()
 
-                if (response.results.isEmpty() && currentMovies.isEmpty()) {
-                    _error.value = "No movies available"
-                } else {
-                    _movies.value = currentMovies + response.results
-                    _hasMorePages.value = currentPage < response.totalPages
-                    if (_hasMorePages.value) currentPage++
-                }
+                _movies.value = currentMovies + response.results
+                _hasMorePages.value = currentPage < response.totalPages
+                if (_hasMorePages.value) currentPage++
             } catch (e: Exception) {
                 if (isLoadingMore) {
                     _paginationError.value = NetworkUtil.getErrorMessage(e)
@@ -74,14 +176,7 @@ class MovieViewModel(private val repository: MovieRepository) : ViewModel() {
             } finally {
                 _isLoading.value = false
                 _isLoadingMore.value = false
-                if (isLoadingMore) {
-                    paginationJob = null
-                }
             }
-        }
-
-        if (isLoadingMore) {
-            paginationJob = job
         }
     }
 
@@ -119,12 +214,17 @@ class MovieViewModel(private val repository: MovieRepository) : ViewModel() {
     }
 
     fun retry() {
-        _error.value = null
-        _paginationError.value = null
-        if (currentQuery != null) {
-            searchMovies(currentQuery!!)
-        } else {
-            loadPopularMovies()
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _error.value = null
+                loadPopularMovies()
+                loadAllCategories()
+            } catch (e: Exception) {
+                _error.value = NetworkUtil.getErrorMessage(e)
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 

@@ -1,217 +1,443 @@
 package asm2.moob.movieapp.ui.screens
 
-import MovieRepository
-import androidx.compose.foundation.clickable
+import CategoryRow
+import asm2.moob.movieapp.data.repository.MovieRepository
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import asm2.moob.movieapp.data.model.Movie
-import asm2.moob.movieapp.data.remote.RetrofitClient
-import asm2.moob.movieapp.navigation.Screen
-import asm2.moob.movieapp.ui.viewmodels.MovieViewModel
-import asm2.moob.movieapp.ui.viewmodels.MovieViewModelFactory
-import coil.compose.AsyncImage
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.flow.StateFlow
-import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.graphics.Color
+import androidx.navigation.NavOptions
 import asm2.moob.movieapp.navigation.Routes
-import asm2.moob.movieapp.ui.components.LoadingState
-import asm2.moob.movieapp.ui.components.ErrorState
-import asm2.moob.movieapp.ui.components.EmptyState
-import asm2.moob.movieapp.ui.viewmodels.AuthState
-import asm2.moob.movieapp.ui.viewmodels.AuthViewModel
+import asm2.moob.movieapp.ui.components.*
+import asm2.moob.movieapp.ui.viewmodels.*
+import asm2.moob.movieapp.data.remote.RetrofitClient
+import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import asm2.moob.movieapp.data.model.Movie
+import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MovieListScreen(
     navController: NavController,
-    viewModel: MovieViewModel = viewModel(
-        factory = MovieViewModelFactory(MovieRepository(RetrofitClient.movieApi))
-    ),
     authViewModel: AuthViewModel
 ) {
-    val authState by authViewModel.authState.collectAsStateWithLifecycle()
+    val viewModel: MovieListViewModel = viewModel(
+        factory = MovieListViewModelFactory(MovieRepository(RetrofitClient.movieApi))
+    )
+    
+    val currentUser = FirebaseAuth.getInstance().currentUser
 
-    // Handle navigation when logged out
-    LaunchedEffect(authState) {
-        if (authState is AuthState.Initial) {
-            navController.navigate(Routes.Register.route) {
-                popUpTo(Routes.MovieList.route) { inclusive = true }
-            }
-        }
-    }
+    val popularMovies by viewModel.popularMovies.collectAsStateWithLifecycle()
+    val nowPlayingMovies by viewModel.nowPlayingMovies.collectAsStateWithLifecycle()
+    val upcomingMovies by viewModel.upcomingMovies.collectAsStateWithLifecycle()
+    val topRatedMovies by viewModel.topRatedMovies.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Movie Book") },
-                actions = {
-                    if (authState is AuthState.Success) {
-                        Text(
-                            text = (authState as AuthState.Success).user.email ?: "",
-                            modifier = Modifier.padding(end = 8.dp),
-                            style = MaterialTheme.typography.bodyMedium
+                title = { 
+                    Text(
+                        text = "Movie Book",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold
                         )
-                        IconButton(
-                            onClick = { authViewModel.logout() }
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                contentDescription = "Logout"
-                            )
+                    )
+                },
+                actions = {
+                    // Display user email
+                    Text(
+                        text = currentUser?.email ?: "",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    IconButton(onClick = {
+                        authViewModel.logout()
+                        navController.navigate(Routes.Login) {
+                            popUpTo(0) { inclusive = true }
                         }
+                    }) {
+                        Icon(Icons.Default.Logout, "Logout")
                     }
                 }
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            var searchQuery by remember { mutableStateOf("") }
-            val movies = viewModel.movies.collectAsStateWithLifecycle()
-            val isLoading = viewModel.isLoading.collectAsStateWithLifecycle()
-            val isLoadingMore = viewModel.isLoadingMore.collectAsStateWithLifecycle()
-            val hasMorePages = viewModel.hasMorePages.collectAsStateWithLifecycle()
-            val error = viewModel.error.collectAsStateWithLifecycle()
-            val paginationError = viewModel.paginationError.collectAsStateWithLifecycle()
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                // Featured Section with larger cards
+                item {
+                    FeaturedSection(
+                        movies = popularMovies.take(5),
+                        onMovieClick = { movie ->
+                            navController.navigate(Routes.movieDetail(movie.id))
+                        }
+                    )
+                }
 
-            Column {
-                SearchBar(
-                    query = searchQuery,
-                    onQueryChange = { 
-                        searchQuery = it
-                        viewModel.searchMovies(it)
-                    },
-                    onSearch = { viewModel.searchMovies(searchQuery) },
-                    modifier = Modifier.fillMaxWidth()
+                // Now Playing Section
+                item {
+                    CategorySection(
+                        title = "Now Playing",
+                        movies = nowPlayingMovies,
+                        onMovieClick = { movie ->
+                            navController.navigate(Routes.movieDetail(movie.id))
+                        },
+                        onViewAllClick = {
+                            navController.navigate(Routes.AllMovies + "?category=now_playing")
+                        }
+                    )
+                }
+
+                // Coming Soon Section
+                item {
+                    CategorySection(
+                        title = "Coming Soon",
+                        movies = upcomingMovies,
+                        onMovieClick = { movie ->
+                            navController.navigate(Routes.movieDetail(movie.id))
+                        },
+                        onViewAllClick = {
+                            navController.navigate(Routes.AllMovies + "?category=upcoming")
+                        },
+                        showReleaseDate = true
+                    )
+                }
+
+                // Top Rated Grid Section
+                item {
+                    Text(
+                        text = "Top Rated",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+
+                items(topRatedMovies.chunked(2)) { rowMovies ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        rowMovies.forEach { movie ->
+                            MovieGridItem(
+                                movie = movie,
+                                onClick = {
+                                    navController.navigate(Routes.movieDetail(movie.id))
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        // Fill empty space if odd number of items
+                        if (rowMovies.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        }
+
+        error?.let { errorMessage ->
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = errorMessage,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeaturedSection(
+    movies: List<Movie>,
+    onMovieClick: (Movie) -> Unit
+) {
+    Column {
+        Text(
+            text = "Featured",
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Bold
+            ),
+            modifier = Modifier.padding(16.dp)
+        )
+
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(movies) { movie ->
+                FeaturedMovieCard(
+                    movie = movie,
+                    onClick = { onMovieClick(movie) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategorySection(
+    title: String,
+    movies: List<Movie>,
+    onMovieClick: (Movie) -> Unit,
+    onViewAllClick: () -> Unit,
+    showReleaseDate: Boolean = false
+) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold
+                )
+            )
+            
+            TextButton(onClick = onViewAllClick) {
+                Text("View All")
+            }
+        }
+
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(movies) { movie ->
+                MovieCard(
+                    movie = movie,
+                    onClick = { onMovieClick(movie) },
+                    showReleaseDate = showReleaseDate
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeaturedMovieCard(
+    movie: Movie,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .width(300.dp)  // Slightly wider
+            .height(200.dp) // Taller for better impact
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        shape = RoundedCornerShape(16.dp) // Rounded corners
+    ) {
+        Box {
+            // Backdrop image
+            AsyncImage(
+                model = "https://image.tmdb.org/t/p/w500${movie.backdropPath}",
+                contentDescription = movie.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+
+            // Gradient overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.8f)
+                            ),
+                            startY = 100f
+                        )
+                    )
+            )
+
+            // Content
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = movie.title,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        shadow = Shadow(
+                            color = Color.Black.copy(alpha = 0.7f),
+                            blurRadius = 4f
+                        )
+                    ),
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
 
-                when {
-                    isLoading.value -> {
-                        LoadingState(
-                            message = if (searchQuery.isBlank()) 
-                                "Loading popular movies..." 
-                            else 
-                                "Searching for '$searchQuery'..."
-                        )
-                    }
-                    error.value != null -> {
-                        ErrorState(
-                            message = getErrorMessage(error.value!!, searchQuery),
-                            onRetry = { viewModel.retry() }
-                        )
-                    }
-                    movies.value.isEmpty() -> {
-                        EmptyState(
-                            message = if (searchQuery.isBlank()) 
-                                "No movies available" 
-                            else 
-                                "No results found for '$searchQuery'",
-                            onRefresh = { viewModel.retry() }
-                        )
-                    }
-                    else -> {
-                        LazyColumn {
-                            items(
-                                items = movies.value,
-                                key = { it.id }
-                            ) { movie ->
-                                MovieItem(
-                                    movie = movie,
-                                    onClick = { navController.navigate(Screen.MovieDetail.createRoute(movie.id)) }
-                                )
+                Spacer(modifier = Modifier.height(4.dp))
 
-                                if (movie == movies.value.lastOrNull()) {
-                                    if (hasMorePages.value && !isLoadingMore.value) {
-                                        LaunchedEffect(Unit) {
-                                            viewModel.loadMore()
-                                        }
-                                    }
-                                }
-                            }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Rating
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFFFD700),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = String.format("%.1f", movie.voteAverage),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White
+                        )
+                    }
 
-                            item {
-                                when {
-                                    isLoadingMore.value -> {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(16.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(32.dp),
-                                                    strokeWidth = 2.dp
-                                                )
-                                                Spacer(modifier = Modifier.height(8.dp))
-                                                Text(
-                                                    text = "Loading more...",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
-                                    }
-                                    paginationError.value != null && hasMorePages.value -> {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(16.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                text = paginationError.value!!,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.error
-                                            )
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Button(
-                                                onClick = { viewModel.loadMore() }
-                                            ) {
-                                                Text("Try Loading More")
-                                            }
-                                        }
-                                    }
-                                    !hasMorePages.value -> {
-                                        Text(
-                                            text = "No more movies to load",
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(16.dp),
-                                            textAlign = TextAlign.Center,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                    // Release year
+                    Text(
+                        text = movie.releaseDate.take(4),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            }
+
+            // New badge for high rated movies
+            if (movie.voteAverage >= 8.0) {
+                Surface(
+                    modifier = Modifier
+                        .padding(12.dp)
+                        .align(Alignment.TopEnd),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
+                ) {
+                    Text(
+                        text = "Top Rated",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MovieGridItem(
+    movie: Movie,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(0.7f)  // Maintain poster aspect ratio
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box {
+            // Movie Poster
+            AsyncImage(
+                model = "https://image.tmdb.org/t/p/w342${movie.posterPath}",
+                contentDescription = movie.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+
+            // Gradient overlay for text visibility
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.7f)
+                            )
+                        )
+                    )
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Text(
+                        text = movie.title,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFFFD700),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = String.format("%.1f", movie.voteAverage),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White
+                        )
                     }
                 }
             }
@@ -220,90 +446,89 @@ fun MovieListScreen(
 }
 
 @Composable
-fun SearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit,
+private fun MovieCard(
+    movie: Movie,
+    onClick: () -> Unit,
+    showReleaseDate: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    TextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = modifier
-            .padding(16.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp)),
-        placeholder = { Text("Search movies...") },
-        trailingIcon = {
-            IconButton(onClick = onSearch) {
-                Icon(
-                    Icons.Default.Search,
-                    contentDescription = "Search",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-        ),
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(
-            imeAction = ImeAction.Search
-        ),
-        keyboardActions = KeyboardActions(
-            onSearch = { onSearch() }
-        )
-    )
-}
-
-@Composable
-fun MovieItem(movie: Movie, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
+        modifier = modifier
+            .width(150.dp)
             .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+        elevation = CardDefaults.cardElevation(4.dp),
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Row(modifier = Modifier.padding(8.dp)) {
-            AsyncImage(
-                model = "https://image.tmdb.org/t/p/w185${movie.posterPath}",
-                contentDescription = movie.title,
+        Column(
+            modifier = Modifier.height(280.dp)  // Fixed height for consistency
+        ) {
+            // Poster
+            Box(
                 modifier = Modifier
-                    .size(100.dp)
-                    .clip(RoundedCornerShape(4.dp))
-            )
+                    .weight(1f)  // Take remaining space
+                    .fillMaxWidth()
+            ) {
+                AsyncImage(
+                    model = "https://image.tmdb.org/t/p/w342${movie.posterPath}",
+                    contentDescription = movie.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+
+                // Rating Badge
+                Surface(
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .align(Alignment.TopEnd),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFFFD700),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = String.format("%.1f", movie.voteAverage),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+            }
+
+            // Title and Release Date
             Column(
                 modifier = Modifier
-                    .padding(start = 8.dp)
-                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = movie.title,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.height(40.dp)  // Fixed height for title
                 )
-                Text(
-                    text = movie.releaseDate,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+
+                if (showReleaseDate && movie.releaseDate.isNotEmpty()) {
+                    Text(
+                        text = movie.releaseDate,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
 }
-
-private fun getErrorMessage(error: String, searchQuery: String): String {
-    return when {
-        error.contains("Unable to resolve host") -> 
-            "No internet connection. Please check your network and try again."
-        error.contains("timeout") -> 
-            "The request timed out. Please try again."
-        searchQuery.isNotBlank() -> 
-            "Failed to search for '$searchQuery'. Please try again."
-        else -> 
-            "Failed to load movies. Please try again."
-    }
-} 
